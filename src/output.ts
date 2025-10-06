@@ -10,6 +10,25 @@ import {
 import {type OutputTransformer} from './render-node-to-output.js';
 
 /**
+ * Override map for characters that string-width incorrectly measures as width 2.
+ *
+ * Issue: string-width uses East Asian Width property which marks certain common
+ * UI symbols as "Ambiguous", causing them to be treated as wide (width 2) even
+ * though they display as narrow (width 1) in modern terminals.
+ *
+ * Each character below has been verified to:
+ * 1. Display as single-width in all modern terminals
+ * 2. Be incorrectly measured as width 2 by string-width
+ * 3. Cause layout breaks when used in fixed-width containers
+ */
+const SINGLE_WIDTH_OVERRIDES = new Set([
+	'\u25B6', // ▶ BLACK RIGHT-POINTING TRIANGLE (common cursor/active indicator)
+	'\u25C0', // ◀ BLACK LEFT-POINTING TRIANGLE
+	'\u26A0', // ⚠ WARNING SIGN (common warning indicator)
+	'\u2139', // ℹ INFORMATION SOURCE (common info indicator)
+]);
+
+/**
 "Virtual" output class
 
 Handles the positioning and saving of the output of each node in the tree. Also responsible for applying transformations to each character of the output.
@@ -205,7 +224,10 @@ export default class Output {
 						currentLine[offsetX] = character;
 
 						// Determine printed width using string-width to align with measurement
-						const characterWidth = Math.max(1, stringWidth(character.value));
+						// Check override map first for characters that string-width incorrectly measures
+						const characterWidth = SINGLE_WIDTH_OVERRIDES.has(character.value)
+							? 1
+							: Math.max(1, stringWidth(character.value));
 
 						// For multi-column characters, clear following cells to avoid stray spaces/artifacts
 						if (characterWidth > 1) {
